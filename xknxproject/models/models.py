@@ -5,8 +5,10 @@ from dataclasses import dataclass
 import re
 
 from xknxproject.models.knxproject import DPTType
-from xknxproject.models.static import SpaceType
+from xknxproject.models.static import GroupAddressStyle, SpaceType
 from xknxproject.zip import KNXProjContents
+
+TranslationsType = dict[str, dict[str, str]]
 
 
 class XMLGroupAddress:
@@ -20,6 +22,9 @@ class XMLGroupAddress:
         project_uid: int | None,
         description: str,
         dpt: DPTType | None,
+        data_secure_key: str | None,
+        comment: str,
+        style: GroupAddressStyle,
     ):
         """Initialize a group address."""
         self.name = name
@@ -28,21 +33,61 @@ class XMLGroupAddress:
         self.project_uid = project_uid
         self.description = description
         self.dpt = dpt
+        self.data_secure_key = data_secure_key  # Key as base64 encoded string or None
+        self.comment = comment
+        self.style = style
+        self.address = XMLGroupAddress.str_address(self.raw_address, self.style)
 
-        self.address = self._parse_address()
-
-    def _parse_address(self) -> str:
+    @staticmethod
+    def str_address(raw_address: int, group_address_style: GroupAddressStyle) -> str:
         """Parse a given address and returns a string representation of it."""
-        main = (self.raw_address & 0b1111100000000000) >> 11
-        middle = (self.raw_address & 0b11100000000) >> 8
-        sub = self.raw_address & 0b11111111
-        return f"{main}/{middle}/{sub}"
+        if group_address_style == GroupAddressStyle.FREE:
+            return str(raw_address)
+        main = (raw_address & 0b1111100000000000) >> 11
+        if group_address_style == GroupAddressStyle.THREELEVEL:
+            middle = (raw_address & 0b11100000000) >> 8
+            sub = raw_address & 0b11111111
+            return f"{main}/{middle}/{sub}"
+        if group_address_style == GroupAddressStyle.TWOLEVEL:
+            sub = raw_address & 0b11111111111
+            return f"{main}/{sub}"
+        raise ValueError(f"GroupAddressSyste '{group_address_style}' not supported!")
 
     def __repr__(self) -> str:
         """Return string representation."""
         return (
             f"{self.address} ({self.name}) - [DPT: {self.dpt}, ID: {self.identifier}]"
         )
+
+
+@dataclass
+class XMLGroupRange:
+    """Class that represents a group range."""
+
+    name: str
+    range_start: int
+    range_end: int
+    group_addresses: list[int]
+    group_ranges: list[XMLGroupRange]
+    comment: str
+    style: GroupAddressStyle
+
+    def str_address(self) -> str:
+        """Generate a string representation for the range."""
+        if self.style == GroupAddressStyle.FREE:
+            return f"{self.range_start}...{self.range_end}"
+        if self.style == GroupAddressStyle.TWOLEVEL:
+            return XMLGroupAddress.str_address(self.range_start, self.style).split("/")[
+                0
+            ]
+        if self.style == GroupAddressStyle.THREELEVEL:
+            start_address_token = XMLGroupAddress.str_address(
+                self.range_start, self.style
+            ).split("/")
+            if (self.range_end - self.range_start) >= 2046:
+                return start_address_token[0]
+            return "/".join(start_address_token[0:2])
+        raise ValueError(f"GroupAddressSyste '{self.style}' not supported!")
 
 
 @dataclass
@@ -260,6 +305,39 @@ class ComObjectRef:
 
 
 @dataclass
+class KNXMasterData:
+    """KNX Master data needed for parsing other project files."""
+
+    function_type_names: dict[str, str]
+    manufacturer_names: dict[str, str]
+    space_usage_mapping: dict[str, str]
+    translations: TranslationsType
+
+    def _get_translation_item(
+        self, ref_id: str, attribute_name: str = "Text"
+    ) -> str | None:
+        """Get translation item from the translations dict."""
+        if self.translations:
+            try:
+                return self.translations[ref_id][attribute_name]
+            except KeyError:
+                return None
+        return None
+
+    def get_function_type_name(self, function_type_id: str) -> str:
+        """Get space usage name from space usage id."""
+        if translated := self._get_translation_item(function_type_id):
+            return translated
+        return self.function_type_names.get(function_type_id, "")
+
+    def get_space_usage_name(self, space_usage_id: str) -> str:
+        """Get space usage name from space usage id."""
+        if translated := self._get_translation_item(space_usage_id):
+            return translated
+        return self.space_usage_mapping.get(space_usage_id, "")
+
+
+@dataclass
 class XMLSpace:
     """A space in the location XML."""
 
@@ -321,7 +399,7 @@ class XMLProjectInformation:
     project_id: str = ""
     name: str = ""
     last_modified: str | None = None
-    group_address_style: str = ""
+    group_address_style: GroupAddressStyle = GroupAddressStyle.THREELEVEL
     guid: str = ""
     created_by: str = ""
     schema_version: str = ""

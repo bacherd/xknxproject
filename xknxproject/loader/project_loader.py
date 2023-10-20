@@ -7,11 +7,14 @@ from xml.etree import ElementTree
 from xknxproject.models import (
     ComObjectInstanceRef,
     DeviceInstance,
+    GroupAddressStyle,
+    KNXMasterData,
     SpaceType,
     XMLArea,
     XMLFunction,
     XMLGroupAddress,
     XMLGroupAddressRef,
+    XMLGroupRange,
     XMLLine,
     XMLProjectInformation,
     XMLSpace,
@@ -26,10 +29,10 @@ class ProjectLoader:
     @staticmethod
     def load(
         knx_proj_contents: KNXProjContents,
-        space_usage_names: dict[str, str],
-        function_type_names: dict[str, str],
+        knx_master_data: KNXMasterData,
     ) -> tuple[
         list[XMLGroupAddress],
+        list[XMLGroupRange],
         list[XMLArea],
         list[DeviceInstance],
         list[XMLSpace],
@@ -40,8 +43,13 @@ class ProjectLoader:
         areas: list[XMLArea] = []
         devices: list[DeviceInstance] = []
         group_address_list: list[XMLGroupAddress] = []
+        group_range_list: list[XMLGroupRange] = []
         spaces: list[XMLSpace] = []
         functions: list[XMLFunction] = []
+
+        with knx_proj_contents.open_project_meta() as project_file:
+            tree = ElementTree.parse(project_file)
+            project_info = load_project_info(tree)
 
         with knx_proj_contents.open_project_0() as project_0_file:
             tree = ElementTree.parse(project_0_file)
@@ -50,7 +58,18 @@ class ProjectLoader:
                 "{*}Project/{*}Installations/{*}Installation/{*}GroupAddresses//{*}GroupAddress"
             ):
                 group_address_list.append(
-                    _GroupAddressLoader.load(group_address_element=ga_element),
+                    _GroupAddressLoader.load(
+                        group_address_element=ga_element,
+                        group_address_style=project_info.group_address_style,
+                    ),
+                )
+            for ga_range_l1 in tree.findall(
+                "{*}Project/{*}Installations/{*}Installation/{*}GroupAddresses/{*}GroupRanges/{*}GroupRange"
+            ):
+                group_range_list.append(
+                    _GroupAddressRangeLoader.load(
+                        ga_range_l1, project_info.group_address_style
+                    )
                 )
             topology_loader = _TopologyLoader(knx_proj_contents)
             for topology_element in tree.findall(
@@ -68,8 +87,8 @@ class ProjectLoader:
 
             location_loader = _LocationLoader(
                 knx_proj_contents,
+                knx_master_data,
                 devices,
-                space_usage_names,
             )
             for location_element in tree.findall(
                 f"{{*}}Project/{{*}}Installations/{{*}}Installation/{{*}}{element_name}"
@@ -80,13 +99,9 @@ class ProjectLoader:
                     )
                 )
 
-        with knx_proj_contents.open_project_meta() as project_file:
-            tree = ElementTree.parse(project_file)
-            project_info = load_project_info(tree)
-
         for function in functions:
             function.usage_text = (
-                function_type_names.get(function.function_type, "")
+                knx_master_data.get_function_type_name(function.function_type)
                 if function.function_type
                 else ""
             )
@@ -98,14 +113,25 @@ class ProjectLoader:
                     if ga.identifier == group_address.ref_id
                 )
 
-        return group_address_list, areas, devices, spaces, project_info, functions
+        return (
+            group_address_list,
+            group_range_list,
+            areas,
+            devices,
+            spaces,
+            project_info,
+            functions,
+        )
 
 
 class _GroupAddressLoader:
     """Load GroupAddress info from KNX XML."""
 
     @staticmethod
-    def load(group_address_element: ElementTree.Element) -> XMLGroupAddress:
+    def load(
+        group_address_element: ElementTree.Element,
+        group_address_style: GroupAddressStyle,
+    ) -> XMLGroupAddress:
         """Load GroupAddress mappings."""
         project_uid = group_address_element.get("Puid")
         return XMLGroupAddress(
@@ -115,7 +141,40 @@ class _GroupAddressLoader:
             project_uid=int(project_uid) if project_uid else None,
             description=group_address_element.get("Description", ""),
             dpt=get_dpt_type(group_address_element.get("DatapointType")),
+            data_secure_key=group_address_element.get("Key"),
+            comment=group_address_element.get("Comment", ""),
+            style=group_address_style,
         )
+
+
+class _GroupAddressRangeLoader:
+    """Load information of GroupAddress levels (GroupRange)."""
+
+    @staticmethod
+    def load(
+        group_range_element: ElementTree.Element, group_address_style: GroupAddressStyle
+    ) -> XMLGroupRange:
+        """Load GroupRange."""
+
+        def create_xml_group_range(elem: ElementTree.Element) -> XMLGroupRange:
+            group_range_elems = elem.findall("./{*}GroupRange")
+            group_ranges = [
+                create_xml_group_range(range_elem) for range_elem in group_range_elems
+            ]
+
+            return XMLGroupRange(
+                name=elem.get("Name", ""),
+                range_start=int(elem.get("RangeStart")),  # type: ignore[arg-type]
+                range_end=int(elem.get("RangeEnd")),  # type: ignore[arg-type]
+                group_addresses=[
+                    int(e.attrib["Address"]) for e in elem.findall("{*}GroupAddress")
+                ],
+                group_ranges=group_ranges,
+                comment=elem.get("Comment", ""),
+                style=group_address_style,
+            )
+
+        return create_xml_group_range(group_range_element)
 
 
 class _TopologyLoader:
@@ -258,17 +317,17 @@ class _LocationLoader:
     def __init__(
         self,
         knx_proj_contents: KNXProjContents,
+        knx_master_data: KNXMasterData,
         devices: list[DeviceInstance],
-        space_usage_names: dict[str, str],
     ):
         """Initialize the LocationLoader."""
+        self.knx_master_data = knx_master_data
         self._element_name = (
             "BuildingPart" if knx_proj_contents.is_ets4_project() else "Space"
         )
         self.devices: dict[str, str] = {
             device.identifier: device.individual_address for device in devices
         }
-        self.space_usage_names = space_usage_names
 
     def load(
         self, location_element: ElementTree.Element, functions: list[XMLFunction]
@@ -284,7 +343,9 @@ class _LocationLoader:
     ) -> XMLSpace:
         """Parse a space from the document."""
         usage_id = node.get("Usage")
-        usage_text = self.space_usage_names.get(usage_id, "") if usage_id else ""
+        usage_text = (
+            self.knx_master_data.get_space_usage_name(usage_id) if usage_id else ""
+        )
         project_uid = node.get("Puid")
         space: XMLSpace = XMLSpace(
             identifier=node.get("Id"),  # type: ignore[arg-type]
@@ -365,7 +426,7 @@ def load_project_info(tree: ElementTree.ElementTree) -> XMLProjectInformation:
             project_id=identifier,
             name=info_node.get("Name", ""),
             last_modified=info_node.get("LastModified"),
-            group_address_style=info_node.get("GroupAddressStyle"),  # type: ignore[arg-type]
+            group_address_style=GroupAddressStyle(info_node.get("GroupAddressStyle")),
             guid=info_node.get("Guid"),  # type: ignore[arg-type]
             created_by=created_by,
             schema_version=schema_version,

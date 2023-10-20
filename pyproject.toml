@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools~=62.3"]
+requires = ["setuptools>=62.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -14,8 +14,8 @@ classifiers  = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "cryptography>=40.0.0",
     "pyzipper>=0.3.6",
+    "striprtf>=0.0.26",
 ]
 description  = "A library to gather information from ETS project files used for KNX"
 dynamic      = ["version"]
@@ -35,7 +35,7 @@ version = {attr = "xknxproject.__version__.__version__"}
 include = ["xknxproject*"]
 
 [tool.black]
-target-version = ["py39", "py310", "py311"]
+target-version = ["py39", "py310", "py311", "py312"]
 exclude = "generated"
 
 
