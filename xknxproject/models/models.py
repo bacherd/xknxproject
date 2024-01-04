@@ -1,10 +1,11 @@
 """Define internally used data structures."""
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 import re
 
-from xknxproject.models.knxproject import DPTType
+from xknxproject.models.knxproject import DPTType, ModuleInstanceInfos
 from xknxproject.models.static import GroupAddressStyle, SpaceType
 from xknxproject.zip import KNXProjContents
 
@@ -119,7 +120,7 @@ class DeviceInstance:
         self,
         *,
         identifier: str,
-        address: str,
+        address: int,
         project_uid: int | None,
         name: str,
         description: str,
@@ -128,8 +129,10 @@ class DeviceInstance:
         hardware_program_ref: str,
         line: XMLLine,
         manufacturer: str,
-        additional_addresses: list[str] | None = None,
-        com_object_instance_refs: list[ComObjectInstanceRef] | None = None,
+        additional_addresses: list[str],
+        channels: list[ChannelNode],
+        com_object_instance_refs: list[ComObjectInstanceRef],
+        module_instances: list[ModuleInstance],
         com_objects: list[ComObject] | None = None,
     ):
         """Initialize a Device Instance."""
@@ -142,14 +145,18 @@ class DeviceInstance:
         self.product_ref = product_ref
         self.hardware_program_ref = hardware_program_ref
         self.line = line
+        self.area_address = line.area.address  # used for sorting
+        self.line_address = line.address  # used for sorting
         self.manufacturer = manufacturer
-        self.additional_addresses = additional_addresses or []
-        self.com_object_instance_refs = com_object_instance_refs or []
+        self.additional_addresses = additional_addresses
+        self.channels: list[ChannelNode] = channels
+        self.com_object_instance_refs = com_object_instance_refs
+        self.module_instances = module_instances
         self.com_objects = com_objects or []
         self.application_program_ref: str | None = None
 
         self.individual_address = (
-            f"{self.line.area.address}.{self.line.address}.{self.address}"
+            f"{self.area_address}.{self.line_address}.{self.address}"
         )
         self.product_name: str = ""
         self.hardware_name: str = ""
@@ -164,6 +171,67 @@ class DeviceInstance:
     def application_program_xml(self) -> str:
         """Obtain the file name to the application program XML."""
         return f"{self.manufacturer}/{self.application_program_ref}.xml"
+
+    def module_instance_arguments(self) -> Iterator[ModuleInstanceArgument]:
+        """Iterate ModuleInstance arguments."""
+        for _module_instance in self.module_instances:
+            yield from _module_instance.arguments
+
+    def _complete_channel_placeholders(self) -> None:
+        """Replace placeholders in channel names with module instance arguments."""
+        for channel in self.channels:
+            if not (
+                channel.ref_id.startswith("MD-")  # only applicable if modules used
+                and "{{" in channel.name  # placeholders are denoted "{{name}}"
+            ):
+                continue
+
+            module_instance_ref = channel.ref_id.split("_CH")[0]
+            module_instance = next(
+                mi
+                for mi in self.module_instances
+                if mi.identifier == module_instance_ref
+            )
+            for argument in module_instance.arguments:
+                channel.name = channel.name.replace(
+                    f"{{{{{argument.name}}}}}", argument.value
+                )
+
+    def apply_module_instance_arguments(self) -> None:
+        """Apply module instance arguments."""
+        self._complete_channel_placeholders()
+        for coir in self.com_object_instance_refs:
+            coir.apply_module_base_number_argument(self.module_instances)
+
+
+@dataclass
+class ChannelNode:
+    """Class that represents a Node with Type Channel."""
+
+    ref_id: str
+    name: str
+
+
+@dataclass
+class ModuleInstance:
+    """Class that represents a ModuleInstance."""
+
+    identifier: str
+    ref_id: str
+    arguments: list[ModuleInstanceArgument]
+
+
+@dataclass
+class ModuleInstanceArgument:
+    """Class that represents a ModuleInstance Argument."""
+
+    ref_id: str
+    value: str
+    name: str = ""  # resolved from application by `ref_id` ModuleDefs/ModuleDef/Arguments/Argument
+
+    def complete_ref_id(self, application_program_ref: str) -> None:
+        """Prepend the ref_id with the application program ref."""
+        self.ref_id = f"{application_program_ref}_{self.ref_id}"
 
 
 @dataclass
@@ -184,6 +252,7 @@ class ComObjectInstanceRef:
     read_on_init_flag: bool | None  # "ReadOnInitFlag" - knx:Enable_t
     datapoint_types: list[DPTType]  # "DataPointType" - knx:IDREFS
     description: str | None  # "Description" - language dependent
+    channel: str | None  # "ChannelId" - knx:IDREFS
     links: list[str] | None  # "Links" - knx:RELIDREFS
 
     # resolved via Hardware.xml from the containing DeviceInstance
@@ -191,8 +260,12 @@ class ComObjectInstanceRef:
 
     # only available form ComObject and ComObjectRef
     name: str | None = None
-    number: int | None = None
     object_size: str | None = None
+    # only available form ComObject
+    base_number_argument_ref: str | None = None  # optional in ComObject
+    number: int | None = None  # required in ComObject
+    # assigned when module arguments are applied
+    module: ModuleInstanceInfos | None = None
 
     def resolve_com_object_ref_id(
         self, application_program_ref: str, knx_proj_contents: KNXProjContents
@@ -231,6 +304,31 @@ class ComObjectInstanceRef:
             self.datapoint_types = com_object.datapoint_types
         if isinstance(com_object, ComObject):
             self.number = com_object.number
+            self.base_number_argument_ref = com_object.base_number_argument_ref
+
+    def apply_module_base_number_argument(
+        self, module_instances: list[ModuleInstance]
+    ) -> None:
+        """Apply module argument of base number."""
+        if (
+            self.base_number_argument_ref is None
+            or not self.ref_id.startswith("MD-")
+            or self.number is None  # only for type safety
+        ):
+            return
+        _module_instance = next(
+            mi for mi in module_instances if self.ref_id.startswith(f"{mi.identifier}_")
+        )
+        root_number = self.number
+        self.number += next(
+            int(arg.value)
+            for arg in _module_instance.arguments
+            if arg.ref_id == self.base_number_argument_ref
+        )
+        self.module = ModuleInstanceInfos(
+            definition=self.ref_id.split("_")[0],
+            root_number=root_number,
+        )
 
 
 @dataclass
@@ -251,6 +349,7 @@ class ComObject:
         "update_flag",
         "read_on_init_flag",
         "datapoint_types",
+        "base_number_argument_ref",
     )
 
     # all items required in the XML
@@ -267,6 +366,10 @@ class ComObject:
     update_flag: bool  # "UpdateFlag" - knx:Enable_t
     read_on_init_flag: bool  # "ReadOnInitFlag" - knx:Enable_t
     datapoint_types: list[DPTType]  # "DataPointType" - knx:IDREFS - optional
+    # "BaseNumber" - knx:IDREF - optional - schema version >= 20
+    # ModuleArgument identifier that holds value to add for
+    # communication object number of ComObjectInstanceRef
+    base_number_argument_ref: str | None
 
 
 @dataclass

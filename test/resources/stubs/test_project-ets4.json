@@ -8,7 +8,7 @@
     "created_by": "ETS4",
     "schema_version": "11",
     "tool_version": "ETS 4.2.0 (Build 3884)",
-    "xknxproject_version": "3.3.0",
+    "xknxproject_version": "3.4.1",
     "language_code": "de-DE"
   },
   "communication_objects": {
@@ -19,6 +19,9 @@
       "function_text": "Switch On/Off",
       "description": "",
       "device_address": "0.0.1",
+      "device_application": "M-0083_A-0013-11-A9D6",
+      "module_def": null,
+      "channel": null,
       "dpts": [
         {
           "main": 1,
@@ -45,6 +48,9 @@
       "function_text": "State",
       "description": "",
       "device_address": "0.0.1",
+      "device_application": "M-0083_A-0013-11-A9D6",
+      "module_def": null,
+      "channel": null,
       "dpts": [
         {
           "main": 1,
@@ -71,6 +77,9 @@
       "function_text": "State",
       "description": "",
       "device_address": "0.0.1",
+      "device_application": "M-0083_A-0013-11-A9D6",
+      "module_def": null,
+      "channel": null,
       "dpts": [
         {
           "main": 1,
@@ -97,6 +106,9 @@
       "function_text": "Behang Auf-Ab fahren",
       "description": "",
       "device_address": "0.0.2",
+      "device_application": "M-0002_A-A061-14-BE27",
+      "module_def": null,
+      "channel": null,
       "dpts": [
         {
           "main": 1,
@@ -124,6 +136,9 @@
       "function_text": "Lamellenverst./Stopp Auf-Ab",
       "description": "",
       "device_address": "0.0.2",
+      "device_application": "M-0002_A-A061-14-BE27",
+      "module_def": null,
+      "channel": null,
       "dpts": [
         {
           "main": 1,
@@ -168,12 +183,14 @@
       "description": "",
       "manufacturer_name": "MDT technologies",
       "individual_address": "0.0.1",
+      "application": "M-0083_A-0013-11-A9D6",
       "project_uid": null,
       "communication_object_ids": [
         "0.0.1/M-0083_A-0013-11-A9D6_O-0_R-10000",
         "0.0.1/M-0083_A-0013-11-A9D6_O-5_R-10005",
         "0.0.1/M-0083_A-0013-11-A9D6_O-13_R-4"
-      ]
+      ],
+      "channels": {}
     },
     "0.0.2": {
       "name": "JRA/S4.230.5.1 Jal./Rol.Akt.Fahrzt.man.4f,230V,REG",
@@ -181,11 +198,13 @@
       "description": "",
       "manufacturer_name": "ABB",
       "individual_address": "0.0.2",
+      "application": "M-0002_A-A061-14-BE27",
       "project_uid": null,
       "communication_object_ids": [
         "0.0.2/M-0002_A-A061-14-BE27_O-10_R-485",
         "0.0.2/M-0002_A-A061-14-BE27_O-71_R-1506"
-      ]
+      ],
+      "channels": {}
     }
   },
   "group_addresses": {

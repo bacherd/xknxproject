@@ -8,7 +8,7 @@
     "created_by": "ETS5",
     "schema_version": "20",
     "tool_version": "5.7.1428.39779",
-    "xknxproject_version": "3.3.0",
+    "xknxproject_version": "3.4.1",
     "language_code": "de-DE"
   },
   "communication_objects": {
@@ -19,6 +19,9 @@
       "function_text": "Messwert empfangen",
       "description": "",
       "device_address": "1.1.1",
+      "device_application": "M-0083_A-013A-32-DCC1",
+      "module_def": null,
+      "channel": null,
       "dpts": [
         {
           "main": 9,
@@ -45,6 +48,12 @@
       "function_text": "Temperaturwert empfangen",
       "description": "",
       "device_address": "1.1.1",
+      "device_application": "M-0083_A-013A-32-DCC1",
+      "module_def": {
+        "definition": "MD-2",
+        "root_number": 1
+      },
+      "channel": "MD-2_M-1_MI-1_CH-1",
       "dpts": [
         {
           "main": 9,
@@ -71,6 +80,12 @@
       "function_text": "Sollwert vorgeben",
       "description": "",
       "device_address": "1.1.1",
+      "device_application": "M-0083_A-013A-32-DCC1",
+      "module_def": {
+        "definition": "MD-2",
+        "root_number": 2
+      },
+      "channel": "MD-2_M-1_MI-1_CH-1",
       "dpts": [
         {
           "main": 9,
@@ -93,11 +108,17 @@
     },
     "1.1.1/MD-2_M-2_MI-1_O-2-1_R-1": {
       "name": "IstWert",
-      "number": 1,
+      "number": 41,
       "text": "Kanal B: Küche",
       "function_text": "Temperaturwert empfangen",
       "description": "Beschreibung KO 41",
       "device_address": "1.1.1",
+      "device_application": "M-0083_A-013A-32-DCC1",
+      "module_def": {
+        "definition": "MD-2",
+        "root_number": 1
+      },
+      "channel": "MD-2_M-2_MI-1_CH-1",
       "dpts": [
         {
           "main": 9,
@@ -119,11 +140,17 @@
     },
     "1.1.1/MD-2_M-2_MI-1_O-2-2_R-3": {
       "name": "SollWert",
-      "number": 2,
+      "number": 42,
       "text": "Kanal B: Küche",
       "function_text": "Sollwert vorgeben",
       "description": "Beschreibung KO 42 (U-Flag)",
       "device_address": "1.1.1",
+      "device_application": "M-0083_A-013A-32-DCC1",
+      "module_def": {
+        "definition": "MD-2",
+        "root_number": 2
+      },
+      "channel": "MD-2_M-2_MI-1_CH-1",
       "dpts": [
         {
           "main": 9,
@@ -151,6 +178,12 @@
       "function_text": "Sollwert vorgeben",
       "description": "",
       "device_address": "1.1.2",
+      "device_application": "M-0083_A-013A-32-DCC1",
+      "module_def": {
+        "definition": "MD-2",
+        "root_number": 2
+      },
+      "channel": "MD-2_M-1_MI-1_CH-1",
       "dpts": [
         {
           "main": 9,
@@ -214,6 +247,7 @@
       "description": "",
       "manufacturer_name": "MDT technologies",
       "individual_address": "1.1.1",
+      "application": "M-0083_A-013A-32-DCC1",
       "project_uid": 12,
       "communication_object_ids": [
         "1.1.1/O-334_R-21",
@@ -221,7 +255,21 @@
         "1.1.1/MD-2_M-1_MI-1_O-2-2_R-3",
         "1.1.1/MD-2_M-2_MI-1_O-2-1_R-1",
         "1.1.1/MD-2_M-2_MI-1_O-2-2_R-3"
-      ]
+      ],
+      "channels": {
+        "MD-2_M-1_MI-1_CH-1": {
+          "identifier": "MD-2_M-1_MI-1_CH-1",
+          "name": "Kanal A: Wohnzimmer"
+        },
+        "MD-2_M-2_MI-1_CH-1": {
+          "identifier": "MD-2_M-2_MI-1_CH-1",
+          "name": "Kanal B: Küche"
+        },
+        "CH-9": {
+          "identifier": "CH-9",
+          "name": "Szenen"
+        }
+      }
     },
     "1.1.2": {
       "name": "AKH-0800.03 Heizungsaktor 8-fach, 4TE, 24/230VAC",
@@ -229,10 +277,21 @@
       "description": "",
       "manufacturer_name": "MDT technologies",
       "individual_address": "1.1.2",
+      "application": "M-0083_A-013A-32-DCC1",
       "project_uid": 13,
       "communication_object_ids": [
         "1.1.2/MD-2_M-1_MI-1_O-2-2_R-3"
-      ]
+      ],
+      "channels": {
+        "MD-2_M-1_MI-1_CH-1": {
+          "identifier": "MD-2_M-1_MI-1_CH-1",
+          "name": "Kanal A: Bad"
+        },
+        "CH-9": {
+          "identifier": "CH-9",
+          "name": "Szenen"
+        }
+      }
     }
   },
   "group_addresses": {
@@ -287,23 +346,6 @@
       "description": "",
       "comment": ""
     },
-    "0/1/2": {
-      "name": "Temperatur Soll",
-      "identifier": "GA-4",
-      "raw_address": 258,
-      "address": "0/1/2",
-      "project_uid": 16,
-      "dpt": {
-        "main": 9,
-        "sub": 1
-      },
-      "data_secure": false,
-      "communication_object_ids": [
-        "1.1.1/MD-2_M-2_MI-1_O-2-2_R-3"
-      ],
-      "description": "",
-      "comment": ""
-    },
     "0/1/1": {
       "name": "Temperatur Ist",
       "identifier": "GA-7",
@@ -317,6 +359,23 @@
       "data_secure": false,
       "communication_object_ids": [
         "1.1.1/MD-2_M-2_MI-1_O-2-1_R-1"
+      ],
+      "description": "",
+      "comment": ""
+    },
+    "0/1/2": {
+      "name": "Temperatur Soll",
+      "identifier": "GA-4",
+      "raw_address": 258,
+      "address": "0/1/2",
+      "project_uid": 16,
+      "dpt": {
+        "main": 9,
+        "sub": 1
+      },
+      "data_secure": false,
+      "communication_object_ids": [
+        "1.1.1/MD-2_M-2_MI-1_O-2-2_R-3"
       ],
       "description": "",
       "comment": ""
